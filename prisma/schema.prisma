@@ -1,0 +1,182 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  email     String   @unique
+  name      String?
+  avatar    String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @map("updated_at")
+
+  // Supabase auth user ID
+  authId String @unique @map("auth_id") @db.Uuid
+
+  // User profile information
+  company   String?
+  role      String?
+  phone     String?
+
+  // Subscription and usage tracking
+  plan         String   @default("free") // free, pro, enterprise
+  creditsUsed  Int      @default(0) @map("credits_used")
+  creditsLimit Int      @default(100) @map("credits_limit")
+
+  // Relationships
+  quotes   Quote[]
+  projects Project[]
+  consultationRequests ConsultationRequest[]
+
+  @@map("users")
+}
+
+model ConsultationRequest {
+  id                     String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId                 String?  @map("user_id") @db.Uuid // Optional for anonymous submissions
+
+  // Basic contact information
+  name                   String
+  email                  String
+  company                String?
+  phone                  String?
+
+  // Project details
+  projectType            String   @map("project_type")
+  budget                 String?
+  timeline               String?
+  targetAudience         String?  @map("target_audience")
+  currentMarketing       String?  @map("current_marketing")
+  goals                  String?
+  message                String?
+
+  // Enhanced fields for quote conversion
+  title                  String?
+  description            String?
+  complexity             String?  // 'basic', 'standard', 'premium'
+  brandGuidelines        String?  @map("brand_guidelines")
+  urgency                String?  @default("standard") // 'standard', 'rush'
+  additionalRequirements String?  @map("additional_requirements")
+
+  // Status and metadata
+  status                 String   @default("new") // 'new', 'contacted', 'quote_requested', 'quoted', 'converted', 'closed'
+  source                 String   @default("homepage") // 'homepage', 'dashboard', 'referral'
+  isAnonymous            Boolean  @default(true) @map("is_anonymous")
+
+  // Pricing (when converted to quote)
+  basePrice              Decimal? @map("base_price") @db.Decimal(10,2)
+  totalPrice             Decimal? @map("total_price") @db.Decimal(10,2)
+  validUntil             DateTime? @map("valid_until")
+
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @default(now()) @map("updated_at")
+
+  // Relationships
+  user                   User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("consultation_requests")
+}
+
+model Quote {
+  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  projectType   String   @map("project_type") // 'short', 'long', 'custom'
+  complexity    String   // 'basic', 'standard', 'premium'
+  title         String
+  description   String
+  targetAudience String  @map("target_audience")
+  brandGuidelines String? @map("brand_guidelines")
+  urgency       String   @default("standard") // 'standard', 'rush'
+  additionalRequirements String? @map("additional_requirements")
+
+  // Pricing
+  basePrice     Decimal  @map("base_price") @db.Decimal(10,2)
+  addOns        Json?    @map("add_ons") // Array of {name, price}
+  totalPrice    Decimal  @map("total_price") @db.Decimal(10,2)
+
+  // Status and timeline
+  status        String   @default("pending") // 'pending', 'consultation_scheduled', 'quoted', 'approved', 'rejected', 'expired'
+  timeline      String?  // "5-7 business days"
+  validUntil    DateTime @map("valid_until")
+
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @default(now()) @map("updated_at")
+
+  // Relationships
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  consultations Consultation[]
+  payments      Payment[]
+  projects      Project[]
+
+  @@map("quotes")
+}
+
+model Consultation {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  quoteId     String   @map("quote_id") @db.Uuid
+  scheduledAt DateTime @map("scheduled_at")
+  duration    Int      @default(30) // minutes
+  status      String   @default("scheduled") // 'scheduled', 'completed', 'cancelled', 'rescheduled'
+  meetingLink String?  @map("meeting_link")
+  notes       String?
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @map("updated_at")
+
+  // Relationships
+  quote       Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@map("consultations")
+}
+
+model Payment {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  quoteId         String   @map("quote_id") @db.Uuid
+  amount          Decimal  @db.Decimal(10,2)
+  paymentType     String   @map("payment_type") // 'deposit', 'final'
+  status          String   @default("pending") // 'pending', 'completed', 'failed', 'refunded'
+  paymentMethod   String?  @map("payment_method") // 'stripe', 'paypal'
+  stripePaymentId String?  @map("stripe_payment_id")
+
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @default(now()) @map("updated_at")
+
+  // Relationships
+  quote           Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+model Project {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  quoteId     String?  @map("quote_id") @db.Uuid
+  title       String
+  description String?
+  status      String   @default("draft") // draft, in_production, review, completed, delivered
+  videoUrl    String?  @map("video_url")
+  thumbnailUrl String? @map("thumbnail_url")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @map("updated_at")
+
+  // Project configuration
+  duration    Int?     // in seconds
+  style       String?  // commercial, social, explainer, etc.
+  voiceType   String?  @map("voice_type") // male, female, neutral
+  musicStyle  String?  @map("music_style")
+
+  // Relationships
+  userId String @map("user_id") @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quote  Quote? @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+
+  @@map("projects")
+}
