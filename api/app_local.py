@@ -44,6 +44,28 @@ B2_ENDPOINT = b2_config["B2_ENDPOINT"]
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+@app.route('/')
+def home():
+    return jsonify({
+        'message': 'Skin Studio API Server (Full-Featured)',
+        'status': 'running',
+        'features': [
+            'Image upload to B2',
+            'Image enhancement processing',
+            'Status checking',
+            'Local file serving',
+            'B2 proxy functionality'
+        ],
+        'endpoints': {
+            '/skin-studio/upload': 'POST - Upload image files (png, jpg, jpeg, gif, webp)',
+            '/skin-studio/status/<filename>': 'GET - Check enhancement status',
+            '/uploads/<filename>': 'GET - Serve local files',
+            '/enhanced/<filename>': 'GET - Serve enhanced files',
+            '/skin-studio/b2-proxy/<path>': 'GET - Proxy B2 files'
+        },
+        'max_file_size': '10MB'
+    })
+
 # Custom B2 upload function to avoid checksum issues
 def upload_to_b2(file_path, object_name):
     """
@@ -57,7 +79,7 @@ def upload_to_b2(file_path, object_name):
     
     try:
         # Use local file URL as fallback
-        local_url = f"http://localhost:5000/uploads/{os.path.basename(file_path)}"
+        local_url = f"http://localhost:5001/uploads/{os.path.basename(file_path)}"
         
         # Try to use b2sdk directly
         try:
@@ -124,7 +146,7 @@ def upload_to_b2(file_path, object_name):
         app.logger.error(traceback.format_exc())
         
         # Return local URL as fallback
-        local_url = f"http://localhost:5000/uploads/{os.path.basename(file_path)}"
+        local_url = f"http://localhost:5001/uploads/{os.path.basename(file_path)}"
         app.logger.info(f"Falling back to local URL due to error: {local_url}")
         return local_url
 
@@ -180,7 +202,7 @@ def enhance_image(input_path, output_path, image_id):
         # Update status
         if image_id in processing_status:
             processing_status[image_id]['status'] = 'enhanced'
-            processing_status[image_id]['enhanced_url'] = f"http://localhost:5000/enhanced/{os.path.basename(output_path)}"
+            processing_status[image_id]['enhanced_url'] = f"http://localhost:5001/enhanced/{os.path.basename(output_path)}"
         
         # Try to upload enhanced image to B2
         enhanced_b2_url = None
@@ -209,7 +231,7 @@ def enhance_image(input_path, output_path, image_id):
                 # Update status with local URL
                 if image_id in processing_status:
                     processing_status[image_id]['status'] = 'complete'
-                    processing_status[image_id]['enhanced_url'] = f"http://localhost:5000/enhanced/{os.path.basename(output_path)}"
+                    processing_status[image_id]['enhanced_url'] = f"http://localhost:5001/enhanced/{os.path.basename(output_path)}"
                     processing_status[image_id]['storage_type'] = 'local'
         
         except Exception as b2_error:
@@ -219,7 +241,7 @@ def enhance_image(input_path, output_path, image_id):
             # Update status with local URL on error
             if image_id in processing_status:
                 processing_status[image_id]['status'] = 'complete'
-                processing_status[image_id]['enhanced_url'] = f"http://localhost:5000/enhanced/{os.path.basename(output_path)}"
+                processing_status[image_id]['enhanced_url'] = f"http://localhost:5001/enhanced/{os.path.basename(output_path)}"
                 processing_status[image_id]['storage_type'] = 'local'
     
     except Exception as e:
@@ -278,24 +300,24 @@ def get_b2_download_url(file_name, bucket_name=None, expires_in=3600):
             
             # Create a signed URL using our proxy endpoint
             # This avoids having to implement S3 signature calculation
-            proxy_url = f"http://localhost:5000/skin-studio/b2-proxy/{file_name}?expires={expiration_time}"
+            proxy_url = f"http://localhost:5001/skin-studio/b2-proxy/{file_name}?expires={expiration_time}"
             
             app.logger.info(f"Generated proxy URL for {file_name} (expires in {expires_in} seconds)")
             return proxy_url
             
         except ImportError:
             app.logger.error("b2sdk not available, falling back to local URL")
-            return f"http://localhost:5000/uploads/{os.path.basename(file_name)}"
+            return f"http://localhost:5001/uploads/{os.path.basename(file_name)}"
             
         except Exception as b2_error:
             app.logger.error(f"Error generating B2 download URL: {str(b2_error)}")
             app.logger.error(traceback.format_exc())
-            return f"http://localhost:5000/uploads/{os.path.basename(file_name)}"
+            return f"http://localhost:5001/uploads/{os.path.basename(file_name)}"
     
     except Exception as e:
         app.logger.error(f"Error in get_b2_download_url: {str(e)}")
         app.logger.error(traceback.format_exc())
-        return f"http://localhost:5000/uploads/{os.path.basename(file_name)}"
+        return f"http://localhost:5001/uploads/{os.path.basename(file_name)}"
 
 @app.route('/skin-studio/b2-proxy/<path:file_path>', methods=['GET'])
 def b2_proxy(file_path):
@@ -433,7 +455,7 @@ def modify_b2_url_for_frontend(url):
             if len(path_parts) == 2:
                 file_path = path_parts[1]
                 # Return the proxy URL - use port 5002 to match the running server
-                return f"http://localhost:5000/skin-studio/b2-proxy/{file_path}"
+                return f"http://localhost:5001/skin-studio/b2-proxy/{file_path}"
     
     # Return the original URL if it's not a B2 URL or if we can't parse it
     return url
@@ -494,7 +516,7 @@ def upload_file():
             app.logger.error(traceback.format_exc())
         
         # Generate URL for the file (use B2 if available, otherwise local)
-        file_url = b2_url if b2_url else f"http://localhost:5000/uploads/{unique_filename}"
+        file_url = b2_url if b2_url else f"http://localhost:5001/uploads/{unique_filename}"
         
         # Convert B2 URL to proxy URL for frontend
         proxy_url = modify_b2_url_for_frontend(file_url)
@@ -558,4 +580,4 @@ def enhanced_file(filename):
     return send_from_directory(ENHANCED_FOLDER, filename)
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000) 
+    app.run(debug=True, port=5001) 

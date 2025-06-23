@@ -1,126 +1,57 @@
-import os
-import tempfile
-import uuid
-import traceback
-from pathlib import Path
-from flask import Flask, request, jsonify
-from werkzeug.utils import secure_filename
-from dotenv import load_dotenv
-from b2_config import upload_file_to_b2
-from cors_config import configure_cors
+# DEPRECATED: Use app_local.py instead
+# This file is kept for reference only
 
-# Load environment variables
-load_dotenv()
+from flask import Flask, jsonify
+from flask_cors import CORS
 
 app = Flask(__name__)
-
-# Configure CORS
-configure_cors(app)
-
-# Configure upload settings
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
-MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10MB max file size
-
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+CORS(app)
 
 @app.route('/')
-def home():
+def deprecated_notice():
     return jsonify({
-        'message': 'Skin Studio API Server',
-        'status': 'running',
-        'endpoints': {
-            '/skin-studio/upload': 'POST - Upload image files (png, jpg, jpeg, gif, webp)'
-        },
-        'max_file_size': '10MB'
+        'message': '⚠️  DEPRECATED: This simple backend is no longer used',
+        'status': 'deprecated',
+        'recommendation': 'Please use app_local.py for full features',
+        'instructions': [
+            'Stop this server (Ctrl+C)',
+            'Run: python app_local.py',
+            'Or use: ./start_backend.sh from project root'
+        ],
+        'app_local_features': [
+            'Image upload to B2 cloud storage',
+            'Automatic image enhancement',
+            'Real-time status updates',
+            'Secure B2 proxy serving',
+            'Local storage fallback'
+        ],
+        'note': 'app_local.py runs on port 5001 with all features enabled'
     })
 
 @app.route('/skin-studio/upload', methods=['POST'])
-def upload_file():
-    # Check if the post request has the file part
-    if 'file' not in request.files:
-        app.logger.error("No file part in the request")
-        return jsonify({
-            'success': False,
-            'error': 'No file part in the request'
-        }), 400
-    
-    file = request.files['file']
-    
-    # If user does not select file, browser also
-    # submit an empty part without filename
-    if file.filename == '':
-        app.logger.error("No selected file")
-        return jsonify({
-            'success': False,
-            'error': 'No selected file'
-        }), 400
-    
-    if not allowed_file(file.filename):
-        app.logger.error(f"File type not allowed: {file.filename}")
-        return jsonify({
-            'success': False,
-            'error': f'File type not allowed. Allowed types: {", ".join(ALLOWED_EXTENSIONS)}'
-        }), 400
-    
-    try:
-        # Create a secure filename with UUID to avoid collisions
-        filename = secure_filename(file.filename)
-        unique_filename = f"{uuid.uuid4().hex}_{filename}"
-        
-        app.logger.info(f"Processing file upload: {unique_filename}")
-        
-        # Save the file temporarily
-        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-            file.save(temp_file.name)
-            temp_path = temp_file.name
-            
-            app.logger.info(f"File saved temporarily at: {temp_path}")
-        
-        try:
-            # Upload to B2
-            app.logger.info("Attempting to upload to B2...")
-            file_url = upload_file_to_b2(temp_path, unique_filename)
-            app.logger.info(f"File uploaded to B2: {file_url}")
-            
-            # Clean up the temporary file
-            os.unlink(temp_path)
-            
-            return jsonify({
-                'success': True,
-                'file_name': unique_filename,
-                'file_url': file_url,
-                'storage_type': 'b2',
-                'is_b2': True
-            })
-        except Exception as b2_error:
-            app.logger.error(f"B2 upload error: {str(b2_error)}")
-            app.logger.error(traceback.format_exc())
-            
-            # Clean up the temporary file
-            os.unlink(temp_path)
-            
-            return jsonify({
-                'success': False,
-                'error': f'Error uploading to cloud storage: {str(b2_error)}'
-            }), 500
-    
-    except Exception as e:
-        app.logger.error(f"General error uploading file: {str(e)}")
-        app.logger.error(traceback.format_exc())
-        return jsonify({
-            'success': False,
-            'error': f'Error processing upload: {str(e)}'
-        }), 500
-
-@app.route('/skin-studio/status/<filename>')
-def get_status(filename):
-    # Simple status endpoint for compatibility
+def deprecated_upload():
     return jsonify({
-        'status': 'completed',
-        'enhanced_url': None,
-        'message': 'Status checking not implemented yet'
-    })
+        'error': 'This endpoint is deprecated',
+        'message': 'Please use app_local.py instead',
+        'success': False,
+        'redirect_to': 'http://localhost:5001/skin-studio/upload'
+    }), 410  # 410 Gone
 
 if __name__ == '__main__':
+    print("=" * 60)
+    print("⚠️  WARNING: This is the DEPRECATED simple backend")
+    print("=" * 60)
+    print("🔥 Please use app_local.py for full features:")
+    print("   - B2 cloud storage")
+    print("   - Image enhancement")
+    print("   - Real-time status updates")
+    print("   - Secure file serving")
+    print("")
+    print("🚀 To start the full backend:")
+    print("   python app_local.py")
+    print("   OR")
+    print("   ./start_backend.sh (from project root)")
+    print("=" * 60)
+    print("")
+    
     app.run(debug=True, port=5001) 
