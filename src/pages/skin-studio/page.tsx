@@ -50,7 +50,7 @@ export default function SkinStudio() {
       
       const statusCheckInterval = setInterval(async () => {
         try {
-          const statusUrl = `http://localhost:5002/skin-studio/status/${filename}`;
+          const statusUrl = `http://localhost:5001/skin-studio/status/${filename}`;
           console.log('Checking status at URL:', statusUrl);
           
           const response = await fetch(statusUrl);

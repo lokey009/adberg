@@ -24,6 +24,17 @@ MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10MB max file size
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+@app.route('/')
+def home():
+    return jsonify({
+        'message': 'Skin Studio API Server',
+        'status': 'running',
+        'endpoints': {
+            '/skin-studio/upload': 'POST - Upload image files (png, jpg, jpeg, gif, webp)'
+        },
+        'max_file_size': '10MB'
+    })
+
 @app.route('/skin-studio/upload', methods=['POST'])
 def upload_file():
     # Check if the post request has the file part
@@ -78,7 +89,9 @@ def upload_file():
             return jsonify({
                 'success': True,
                 'file_name': unique_filename,
-                'file_url': file_url
+                'file_url': file_url,
+                'storage_type': 'b2',
+                'is_b2': True
             })
         except Exception as b2_error:
             app.logger.error(f"B2 upload error: {str(b2_error)}")
@@ -100,5 +113,14 @@ def upload_file():
             'error': f'Error processing upload: {str(e)}'
         }), 500
 
+@app.route('/skin-studio/status/<filename>')
+def get_status(filename):
+    # Simple status endpoint for compatibility
+    return jsonify({
+        'status': 'completed',
+        'enhanced_url': None,
+        'message': 'Status checking not implemented yet'
+    })
+
 if __name__ == '__main__':
-    app.run(debug=True) 
+    app.run(debug=True, port=5001) 

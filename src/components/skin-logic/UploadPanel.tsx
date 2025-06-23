@@ -60,7 +60,7 @@ const UploadPanel = ({
   const [statusInterval, setStatusInterval] = useState<NodeJS.Timeout | null>(null);
 
   // Backend API URL
-  const API_URL = 'http://localhost:5002';
+  const API_URL = 'http://localhost:5001';
   
   // Log when props change
   useEffect(() => {

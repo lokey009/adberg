@@ -3,6 +3,9 @@ from typing import Dict, Optional
 import boto3
 from botocore.client import Config
 
+# Disable boto3 automatic checksums for B2 compatibility
+os.environ['AWS_S3_DISABLE_MULTIPART_CHECKSUMS'] = '1'
+
 def get_b2_config() -> Dict[str, str]:
     """
     Returns a dictionary with B2 configuration loaded from hardcoded values.
@@ -37,6 +40,9 @@ def get_b2_s3_client():
         retries={'max_attempts': 3}
     )
 
+    # Set environment variable to disable checksums
+    os.environ['AWS_S3_DISABLE_MULTIPART_CHECKSUMS'] = '1'
+    
     return boto3.client(
         's3',
         endpoint_url=f'https://{config["B2_ENDPOINT"]}',
@@ -63,7 +69,15 @@ def upload_file_to_b2(file_path: str, object_name: Optional[str] = None) -> str:
     if object_name is None:
         object_name = os.path.basename(file_path)
     s3_client = get_b2_s3_client()
-    s3_client.upload_file(file_path, bucket_name, object_name)
+    
+    # Use put_object instead of upload_file to avoid checksum headers
+    with open(file_path, 'rb') as file_data:
+        s3_client.put_object(
+            Bucket=bucket_name,
+            Key=object_name,
+            Body=file_data
+        )
+    
     # Construct the object URL
     endpoint = config["B2_ENDPOINT"]
     url = f"https://{endpoint}/{bucket_name}/{object_name}"
