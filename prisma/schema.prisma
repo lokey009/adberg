@@ -180,3 +180,29 @@ model Project {
 
   @@map("projects")
 }
+
+model ImageCounter {
+  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  counterName  String   @unique @map("counter_name") @default("image_upload")
+  currentValue BigInt   @map("current_value") @default(0)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @default(now()) @map("updated_at")
+
+  @@map("image_counters")
+}
+
+model EnhancementJob {
+  id               String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  jobId            String   @unique @map("job_id") // RunPod job ID
+  imageId          String   @map("image_id") // Original image filename
+  originalImageUrl String   @map("original_image_url")
+  enhancedImageUrl String?  @map("enhanced_image_url")
+  status           String   @default("processing") // processing, completed, failed
+  faceParsingConfig Json   @map("face_parsing_config") // Store face parsing parameters
+  errorMessage     String?  @map("error_message")
+  progress         Int      @default(0) // 0-100
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @default(now()) @map("updated_at")
+
+  @@map("enhancement_jobs")
+}

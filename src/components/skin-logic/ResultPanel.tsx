@@ -1,6 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Download, Maximize2 } from 'lucide-react';
+import { Download, Maximize2, Wand2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
+import FaceParsingConfig, { FaceParsingConfig as FaceParsingConfigType } from './FaceParsingConfig';
+import EnhancementProgress from './EnhancementProgress';
+import { EnhancementService, EnhancementStatus } from '@/services/enhancementService';
 
 interface ResultPanelProps {
   originalImage?: string;
@@ -8,6 +12,11 @@ interface ResultPanelProps {
   isLoading?: boolean;
   processingTime?: string;
   enhancementLevel?: string;
+  // New props for enhancement integration
+  imageId?: string;
+  originalImageUrl?: string;
+  onEnhancementStart?: (jobId: string) => void;
+  onEnhancementComplete?: (enhancedImageUrl: string) => void;
 }
 
 const ResultPanel: React.FC<ResultPanelProps> = ({ 
@@ -15,11 +24,23 @@ const ResultPanel: React.FC<ResultPanelProps> = ({
   enhancedImage = '/images/enhanced.jpg',
   isLoading = false,
   processingTime = '1.23s',
-  enhancementLevel = '1.7x'
+  enhancementLevel = '1.7x',
+  imageId,
+  originalImageUrl,
+  onEnhancementStart,
+  onEnhancementComplete
 }) => {
   const [sliderPosition, setSliderPosition] = useState(50);
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
+
+  // Enhancement state
+  const [showFaceParsingConfig, setShowFaceParsingConfig] = useState(false);
+  const [isEnhancing, setIsEnhancing] = useState(false);
+  const [enhancementJobId, setEnhancementJobId] = useState<string | null>(null);
+  const [currentEnhancedImage, setCurrentEnhancedImage] = useState<string | null>(null);
+  const [isConfigLoading, setIsConfigLoading] = useState(false);
   
   // Handle mouse move on the container
   const handleMouseMove = (e: MouseEvent) => {
@@ -70,6 +91,111 @@ const ResultPanel: React.FC<ResultPanelProps> = ({
     setSliderPosition(newPosition);
   };
   
+  // Enhancement functions
+  const handleEnhanceClick = () => {
+    if (!imageId || !originalImageUrl) {
+      toast({
+        title: "No image uploaded",
+        description: "Please upload an image first to enhance it.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setShowFaceParsingConfig(true);
+  };
+
+  const handleFaceParsingConfirm = async (config: FaceParsingConfigType) => {
+    setIsConfigLoading(true);
+    try {
+      const result = await EnhancementService.startEnhancement(
+        imageId!,
+        originalImageUrl!,
+        config
+      );
+
+      if (result.success) {
+        setEnhancementJobId(result.job_id);
+        setIsEnhancing(true);
+        setShowFaceParsingConfig(false);
+        
+        if (onEnhancementStart) {
+          onEnhancementStart(result.job_id);
+        }
+
+        toast({
+          title: "Enhancement started",
+          description: "Your image enhancement is now processing. This will take 3-4 minutes.",
+        });
+      } else {
+        throw new Error(result.error || 'Failed to start enhancement');
+      }
+    } catch (error) {
+      toast({
+        title: "Enhancement failed",
+        description: error instanceof Error ? error.message : "Failed to start enhancement",
+        variant: "destructive",
+      });
+    } finally {
+      setIsConfigLoading(false);
+    }
+  };
+
+  const handleEnhancementComplete = (result: EnhancementStatus) => {
+    if (result.enhanced_image_url) {
+      setCurrentEnhancedImage(result.enhanced_image_url);
+      setIsEnhancing(false);
+      setEnhancementJobId(null);
+      
+      if (onEnhancementComplete) {
+        onEnhancementComplete(result.enhanced_image_url);
+      }
+
+      toast({
+        title: "Enhancement completed!",
+        description: "Your image has been successfully enhanced.",
+      });
+    }
+  };
+
+  const handleEnhancementError = (error: string) => {
+    setIsEnhancing(false);
+    setEnhancementJobId(null);
+    
+    toast({
+      title: "Enhancement failed",
+      description: error,
+      variant: "destructive",
+    });
+  };
+
+  const handleDownload = async () => {
+    const downloadImage = currentEnhancedImage || enhancedImage;
+    if (!downloadImage) {
+      toast({
+        title: "No image to download",
+        description: "Please enhance an image first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const filename = imageId ? `enhanced_${imageId}` : 'enhanced_image.jpg';
+      await EnhancementService.downloadImage(downloadImage, filename);
+      
+      toast({
+        title: "Download started",
+        description: "Your enhanced image is being downloaded.",
+      });
+    } catch (error) {
+      toast({
+        title: "Download failed",
+        description: error instanceof Error ? error.message : "Failed to download image",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Add global event listeners
   useEffect(() => {
     const handleMouseUp = () => {
@@ -96,6 +222,22 @@ const ResultPanel: React.FC<ResultPanelProps> = ({
       <div className="px-6 py-4 flex items-center justify-between border-b border-gray-800">
         <h2 className="text-xl font-semibold text-white">Result</h2>
         <div className="flex space-x-2">
+          {/* Enhance Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleEnhanceClick}
+            disabled={isEnhancing || !imageId}
+            className="border-blue-500 text-blue-400 hover:bg-blue-500/10"
+          >
+            {isEnhancing ? (
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Wand2 className="h-4 w-4 mr-2" />
+            )}
+            {isEnhancing ? 'Enhancing...' : 'Enhance Skin'}
+          </Button>
+          
           <Button
             variant="outline"
             size="sm"
@@ -106,6 +248,8 @@ const ResultPanel: React.FC<ResultPanelProps> = ({
           </Button>
           <Button
             size="sm"
+            onClick={handleDownload}
+            disabled={!currentEnhancedImage && !enhancedImage}
             className="bg-primary hover:bg-primary/90 text-white"
           >
             <Download className="h-4 w-4 mr-2" />
@@ -116,6 +260,17 @@ const ResultPanel: React.FC<ResultPanelProps> = ({
       
       {/* Comparison Container */}
       <div className="p-6">
+        {/* Enhancement Progress */}
+        {isEnhancing && enhancementJobId && (
+          <div className="mb-6">
+            <EnhancementProgress
+              jobId={enhancementJobId}
+              onComplete={handleEnhancementComplete}
+              onError={handleEnhancementError}
+            />
+          </div>
+        )}
+
         <div 
           ref={containerRef}
           className="relative h-[500px] w-full rounded-lg overflow-hidden cursor-col-resize bg-black"
@@ -148,13 +303,13 @@ const ResultPanel: React.FC<ResultPanelProps> = ({
             }}
           >
             <img
-              src={enhancedImage}
+              src={currentEnhancedImage || enhancedImage}
               alt="Enhanced"
               className="w-full h-full object-cover"
               draggable="false"
             />
             <div className="text-white text-sm opacity-70 absolute bottom-2 left-4">
-              Enhanced
+              {currentEnhancedImage ? 'AI Enhanced' : 'Enhanced'}
             </div>
           </div>
           
@@ -197,12 +352,15 @@ const ResultPanel: React.FC<ResultPanelProps> = ({
             <p className="text-white font-medium">{enhancementLevel}</p>
           </div>
         </div>
-        
-        {/* Caption Text */}
-        <p className="mt-4 text-sm text-gray-400 text-center">
-          Drag or click across the image to compare the original and enhanced versions
-        </p>
       </div>
+
+      {/* Face Parsing Configuration Modal */}
+      <FaceParsingConfig
+        isOpen={showFaceParsingConfig}
+        onClose={() => setShowFaceParsingConfig(false)}
+        onConfirm={handleFaceParsingConfirm}
+        isLoading={isConfigLoading}
+      />
     </div>
   );
 };

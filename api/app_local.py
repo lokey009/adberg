@@ -15,6 +15,13 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'realism-enhancement'))
 from b2_config import get_b2_config
 
+# Import our new services
+services_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'services')
+sys.path.insert(0, services_path)
+from image_counter import generate_unique_filename, initialize_image_counter
+from runpod_client import get_default_face_parsing_config
+from enhancement_service import create_enhancement_job, get_job_status, get_job_result, list_user_enhancement_jobs
+
 # Load environment variables
 load_dotenv()
 
@@ -32,6 +39,9 @@ ENHANCED_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'enha
 # Create directories if they don't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(ENHANCED_FOLDER, exist_ok=True)
+
+# Initialize image counter on startup
+initialize_image_counter()
 
 # Store processing status
 processing_status = {}
@@ -489,11 +499,15 @@ def upload_file():
         }), 400
     
     try:
-        # Create a secure filename with UUID to avoid collisions
-        filename = secure_filename(file.filename)
-        unique_filename = f"{uuid.uuid4().hex}_{filename}"
+        # Create a secure filename and generate unique filename with counter
+        original_filename = secure_filename(file.filename)
+        if not original_filename:
+            original_filename = 'image.jpg'
         
-        app.logger.info(f"Processing file upload: {unique_filename}")
+        # Generate unique filename with counter: counter_originalname.extension
+        unique_filename, counter = generate_unique_filename(original_filename)
+        
+        app.logger.info(f"Processing file upload: {unique_filename} (counter: {counter}, original: {original_filename})")
         
         # Save file to local uploads directory
         file_path = os.path.join(UPLOAD_FOLDER, unique_filename)
@@ -542,6 +556,8 @@ def upload_file():
         return jsonify({
             'success': True,
             'file_name': unique_filename,
+            'original_filename': original_filename,
+            'counter': counter,
             'file_url': proxy_url,  # Use proxy URL instead of direct B2 URL
             'original_url': file_url,  # Include original URL for debugging
             'status': 'processing',
@@ -578,6 +594,138 @@ def uploaded_file(filename):
 @app.route('/enhanced/<filename>')
 def enhanced_file(filename):
     return send_from_directory(ENHANCED_FOLDER, filename)
+
+# ===== NEW RUNPOD ENHANCEMENT ENDPOINTS =====
+
+@app.route('/skin-studio/enhance', methods=['POST'])
+def start_enhancement():
+    """Start image enhancement using RunPod API"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'No JSON data provided'
+            }), 400
+        
+        image_id = data.get('image_id')
+        face_parsing_config = data.get('face_parsing_config')
+        original_image_url = data.get('original_image_url')
+        
+        if not image_id:
+            return jsonify({
+                'success': False,
+                'error': 'image_id is required'
+            }), 400
+        
+        if not original_image_url:
+            return jsonify({
+                'success': False,
+                'error': 'original_image_url is required'
+            }), 400
+        
+        # Use default face parsing config if none provided
+        if not face_parsing_config:
+            face_parsing_config = get_default_face_parsing_config()
+        
+        app.logger.info(f"Starting enhancement for image: {image_id}")
+        
+        # Create enhancement job
+        result = create_enhancement_job(image_id, original_image_url, face_parsing_config)
+        
+        if result['success']:
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 500
+            
+    except Exception as e:
+        app.logger.error(f"Error starting enhancement: {str(e)}")
+        app.logger.error(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': f'Error starting enhancement: {str(e)}'
+        }), 500
+
+@app.route('/skin-studio/enhance/status/<job_id>', methods=['GET'])
+def check_enhancement_status(job_id):
+    """Check the status of an enhancement job"""
+    try:
+        app.logger.info(f"Checking status for job: {job_id}")
+        
+        result = get_job_status(job_id)
+        
+        if result['success']:
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 404
+            
+    except Exception as e:
+        app.logger.error(f"Error checking enhancement status: {str(e)}")
+        app.logger.error(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': f'Error checking status: {str(e)}'
+        }), 500
+
+@app.route('/skin-studio/enhance/result/<job_id>', methods=['GET'])
+def get_enhancement_result(job_id):
+    """Get the final result of an enhancement job"""
+    try:
+        app.logger.info(f"Getting result for job: {job_id}")
+        
+        result = get_job_result(job_id)
+        
+        if result['success']:
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 404
+            
+    except Exception as e:
+        app.logger.error(f"Error getting enhancement result: {str(e)}")
+        app.logger.error(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': f'Error getting result: {str(e)}'
+        }), 500
+
+@app.route('/skin-studio/enhance/jobs', methods=['GET'])
+def list_enhancement_jobs():
+    """List recent enhancement jobs (for debugging)"""
+    try:
+        limit = request.args.get('limit', 10, type=int)
+        
+        result = list_user_enhancement_jobs(limit)
+        
+        if result['success']:
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 500
+            
+    except Exception as e:
+        app.logger.error(f"Error listing enhancement jobs: {str(e)}")
+        app.logger.error(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': f'Error listing jobs: {str(e)}'
+        }), 500
+
+@app.route('/skin-studio/enhance/default-config', methods=['GET'])
+def get_default_config():
+    """Get default face parsing configuration"""
+    try:
+        config = get_default_face_parsing_config()
+        return jsonify({
+            'success': True,
+            'config': config
+        }), 200
+        
+    except Exception as e:
+        app.logger.error(f"Error getting default config: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Error getting default config: {str(e)}'
+        }), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001) 
