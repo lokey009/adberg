@@ -27,8 +27,12 @@ def start_enhancement(image_id, face_parsing_config):
         'Authorization': f'Bearer {RUNPOD_API_KEY}'
     }
     
+    # Construct the B2 image URL from the image_id
+    image_url = f"https://f005.backblazeb2.com/file/shortshive/{image_id}"
+    
     payload = {
         "input": {
+            "image_url": image_url,  # Add the actual image URL
             "image_id": image_id,
             "face_parsing": face_parsing_config
         }
@@ -36,7 +40,9 @@ def start_enhancement(image_id, face_parsing_config):
     
     try:
         print(f"Starting enhancement for image: {image_id}")
+        print(f"Image URL: {image_url}")
         print(f"Face parsing config: {json.dumps(face_parsing_config, indent=2)}")
+        print(f"Full payload: {json.dumps(payload, indent=2)}")
         
         response = requests.post(RUNPOD_API_URL, headers=headers, json=payload, timeout=30)
         
@@ -105,6 +111,8 @@ def check_enhancement_status(job_id):
         if response.status_code == 200:
             result = response.json()
             
+            print(f"Raw RunPod response for job {job_id}: {json.dumps(result, indent=2)}")
+            
             status = result.get('status', 'UNKNOWN')
             
             # Map RunPod statuses to our internal statuses
@@ -137,10 +145,12 @@ def check_enhancement_status(job_id):
                 # Get the output if completed
                 if 'output' in result:
                     response_data['output'] = result['output']
+                    print(f"RunPod output for completed job {job_id}: {json.dumps(result['output'], indent=2)}")
             elif mapped_status == 'failed':
                 response_data['progress'] = 0
                 if 'error' in result:
                     response_data['error'] = result['error']
+                    print(f"RunPod error for job {job_id}: {result['error']}")
             
             print(f"Status check for job {job_id}: {status} -> {mapped_status}")
             return response_data

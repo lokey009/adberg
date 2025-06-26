@@ -186,11 +186,29 @@ def update_job_status_in_db(job_id, status_info):
         error_message = status_info.get('error')
         enhanced_image_url = None
         
-        # If completed, try to get the enhanced image URL
+        # If completed, try to get the enhanced image URL directly from output
         if status == 'completed' and 'output' in status_info:
-            result = get_enhancement_result(job_id)
-            if result['success']:
-                enhanced_image_url = result.get('enhanced_image_url')
+            output = status_info['output']
+            print(f"RunPod output for job {job_id}: {output}")
+            
+            # Extract enhanced image URL from different possible formats
+            if isinstance(output, dict):
+                enhanced_image_url = (output.get('image_url') or 
+                                    output.get('enhanced_image') or 
+                                    output.get('enhanced_image_url') or
+                                    output.get('output_image') or
+                                    output.get('result'))
+            elif isinstance(output, str):
+                enhanced_image_url = output
+            elif isinstance(output, list) and len(output) > 0:
+                if isinstance(output[0], str):
+                    enhanced_image_url = output[0]
+                elif isinstance(output[0], dict):
+                    enhanced_image_url = (output[0].get('image_url') or 
+                                        output[0].get('enhanced_image') or
+                                        output[0].get('url'))
+            
+            print(f"Extracted enhanced image URL: {enhanced_image_url}")
         
         cursor.execute("""
             UPDATE enhancement_jobs 
@@ -213,6 +231,8 @@ def update_job_status_in_db(job_id, status_info):
         conn.close()
         
         print(f"Updated job {job_id} status to {status} with progress {progress}%")
+        if enhanced_image_url:
+            print(f"Enhanced image URL stored: {enhanced_image_url}")
         
     except Exception as e:
         print(f"Error updating job status in database: {e}")

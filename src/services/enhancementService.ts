@@ -45,20 +45,35 @@ export class EnhancementService {
     originalImageUrl: string,
     faceParsingConfig: FaceParsingConfig
   ): Promise<EnhancementJob> {
+    console.log('🔥 EnhancementService.startEnhancement called');
+    console.log('🔥 API_BASE_URL:', API_BASE_URL);
+    console.log('🔥 imageId:', imageId);
+    console.log('🔥 originalImageUrl:', originalImageUrl);
+    console.log('🔥 faceParsingConfig:', faceParsingConfig);
+    
     try {
+      const requestBody = {
+        image_id: imageId,
+        original_image_url: originalImageUrl,
+        face_parsing_config: faceParsingConfig,
+      };
+      
+      console.log('🔥 Request body:', JSON.stringify(requestBody, null, 2));
+      console.log('🔥 Making fetch request to:', `${API_BASE_URL}/skin-studio/enhance`);
+      
       const response = await fetch(`${API_BASE_URL}/skin-studio/enhance`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          image_id: imageId,
-          original_image_url: originalImageUrl,
-          face_parsing_config: faceParsingConfig,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
+      console.log('🔥 Response status:', response.status);
+      console.log('🔥 Response ok:', response.ok);
+
       const data = await response.json();
+      console.log('🔥 Response data:', data);
 
       if (!response.ok) {
         throw new Error(data.error || `HTTP error! status: ${response.status}`);
@@ -66,7 +81,7 @@ export class EnhancementService {
 
       return data;
     } catch (error) {
-      console.error('Error starting enhancement:', error);
+      console.error('❌ Error starting enhancement:', error);
       throw new Error(
         error instanceof Error 
           ? error.message 

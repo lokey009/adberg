@@ -535,23 +535,12 @@ def upload_file():
         # Convert B2 URL to proxy URL for frontend
         proxy_url = modify_b2_url_for_frontend(file_url)
         
-        # Set initial processing status
+        # Set initial upload status (no automatic enhancement)
         processing_status[unique_filename] = {
-            'status': 'processing',
+            'status': 'uploaded',
             'uploaded_url': file_url,
             'storage_type': storage_type
         }
-        
-        # Start enhancement in a background thread
-        enhanced_filename = f"enhanced_{unique_filename}"
-        enhanced_path = os.path.join(ENHANCED_FOLDER, enhanced_filename)
-        
-        enhancement_thread = threading.Thread(
-            target=enhance_image, 
-            args=(file_path, enhanced_path, unique_filename)
-        )
-        enhancement_thread.daemon = True
-        enhancement_thread.start()
         
         return jsonify({
             'success': True,
@@ -560,9 +549,10 @@ def upload_file():
             'counter': counter,
             'file_url': proxy_url,  # Use proxy URL instead of direct B2 URL
             'original_url': file_url,  # Include original URL for debugging
-            'status': 'processing',
+            'status': 'uploaded',
             'storage_type': storage_type,
-            'is_b2': storage_type == 'b2'  # Keep for backward compatibility
+            'is_b2': storage_type == 'b2',  # Keep for backward compatibility
+            'message': 'File uploaded successfully. Use "Enhance Skin" button to start AI enhancement.'
         })
     
     except Exception as e:

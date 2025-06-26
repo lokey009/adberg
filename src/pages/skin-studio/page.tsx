@@ -36,12 +36,12 @@ export default function SkinStudio() {
     agreedToBestPractices: false
   });
 
-  // Auto-check status when image is uploaded and settings are valid
-  useEffect(() => {
-    if (uploadedImage && currentFilename && enhancementSettings.agreedToBestPractices && !isEnhancing && !enhancedImage) {
-      checkEnhancementStatus(currentFilename);
-    }
-  }, [uploadedImage, enhancementSettings.agreedToBestPractices, currentFilename]);
+  // Disable automatic enhancement - only manual "Enhance Skin" button should trigger RunPod API
+  // useEffect(() => {
+  //   if (uploadedImage && currentFilename && enhancementSettings.agreedToBestPractices && !isEnhancing && !enhancedImage) {
+  //     checkEnhancementStatus(currentFilename);
+  //   }
+  // }, [uploadedImage, enhancementSettings.agreedToBestPractices, currentFilename]);
 
   const checkEnhancementStatus = async (filename: string) => {
     try {
@@ -141,23 +141,11 @@ export default function SkinStudio() {
       const isB2 = serverUrl.includes('backblazeb2.com') || serverUrl.includes('b2-proxy');
       console.log('Is B2 URL:', isB2, 'URL contains backblazeb2.com:', serverUrl.includes('backblazeb2.com'), 'URL contains b2-proxy:', serverUrl.includes('b2-proxy'));
       
-      // Show appropriate toast notification
-      if (enhancementSettings.agreedToBestPractices) {
-        toast({
-          title: isB2 ? "Image uploaded to B2" : "Image uploaded locally",
-          description: "Your image will be automatically enhanced.",
-        });
-        
-        // Auto-start enhancement if best practices are agreed to
-        if (filename) {
-          checkEnhancementStatus(filename);
-        }
-      } else {
-        toast({
-          title: isB2 ? "Image uploaded to B2" : "Image uploaded locally",
-          description: "Please agree to best practices to enhance your image.",
-        });
-      }
+      // Show appropriate toast notification (no automatic enhancement)
+      toast({
+        title: isB2 ? "Image uploaded to B2" : "Image uploaded locally",
+        description: "Click 'Enhance Skin' button to process with RunPod AI.",
+      });
     } else {
       console.warn('No server URL provided, using local preview only');
       toast({
@@ -223,8 +211,19 @@ export default function SkinStudio() {
             {(enhancedImage || isEnhancing || uploadedImage) && (
               <ResultPanel
                 originalImage={uploadedImage}
-                enhancedImage={enhancedImage}
+                enhancedImage={null}
                 isLoading={isEnhancing}
+                imageId={currentFilename}
+                originalImageUrl={b2ImageUrl}
+                onEnhancementStart={(jobId) => {
+                  console.log('RunPod enhancement started with job ID:', jobId);
+                  setIsEnhancing(true);
+                }}
+                onEnhancementComplete={(enhancedImageUrl) => {
+                  console.log('RunPod enhancement completed:', enhancedImageUrl);
+                  setEnhancedImage(enhancedImageUrl);
+                  setIsEnhancing(false);
+                }}
               />
             )}
           </div>

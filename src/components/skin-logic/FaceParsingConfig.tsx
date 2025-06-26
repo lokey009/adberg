@@ -130,6 +130,8 @@ const configSections = [
 export default function FaceParsingConfig({ isOpen, onClose, onConfirm, isLoading = false }: FaceParsingConfigProps) {
   const [config, setConfig] = useState<FaceParsingConfig>(defaultConfig);
 
+  console.log('🎭 FaceParsingConfig component rendered with isOpen:', isOpen);
+
   const updateConfig = (key: keyof FaceParsingConfig, value: boolean) => {
     setConfig(prev => ({ ...prev, [key]: value }));
   };

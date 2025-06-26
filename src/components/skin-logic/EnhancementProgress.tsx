@@ -103,6 +103,8 @@ export default function EnhancementProgress({
       setIsLoading(true);
       const response = await fetch(`http://localhost:5001/skin-studio/enhance/status/${jobId}`);
       const data = await response.json();
+      
+      console.log('🔍 EnhancementProgress status response:', data);
 
       if (data.success) {
         setStatus(data);
@@ -111,15 +113,22 @@ export default function EnhancementProgress({
 
         // Handle completion or failure
         if (data.status === 'completed') {
+          console.log('🎉 Enhancement completed! Data:', data);
+          console.log('🎉 Enhanced image URL:', data.enhanced_image_url);
           onComplete(data);
         } else if (data.status === 'failed') {
+          console.error('💥 Enhancement failed:', data.error_message);
           onError(data.error_message || 'Enhancement failed');
+        } else {
+          console.log('⏳ Enhancement still processing:', data.status, `${data.progress}%`);
         }
       } else {
+        console.error('❌ Status check failed:', data);
         setError(data.error || 'Failed to check status');
         onError(data.error || 'Failed to check status');
       }
     } catch (err) {
+      console.error('🌐 Network error checking status:', err);
       const errorMessage = `Network error: ${err instanceof Error ? err.message : 'Unknown error'}`;
       setError(errorMessage);
       onError(errorMessage);

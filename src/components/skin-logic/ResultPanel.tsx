@@ -21,7 +21,7 @@ interface ResultPanelProps {
 
 const ResultPanel: React.FC<ResultPanelProps> = ({ 
   originalImage = '/images/input.jpg', 
-  enhancedImage = '/images/enhanced.jpg',
+  enhancedImage,
   isLoading = false,
   processingTime = '1.23s',
   enhancementLevel = '1.7x',
@@ -93,7 +93,17 @@ const ResultPanel: React.FC<ResultPanelProps> = ({
   
   // Enhancement functions
   const handleEnhanceClick = () => {
+    alert('BUTTON CLICKED! Check console for details.');
+    console.log('🔥 ENHANCE SKIN BUTTON CLICKED!');
+    console.log('🔥 imageId:', imageId);
+    console.log('🔥 originalImageUrl:', originalImageUrl);
+    console.log('🔥 isEnhancing:', isEnhancing);
+    console.log('🔥 showFaceParsingConfig state:', showFaceParsingConfig);
+    
     if (!imageId || !originalImageUrl) {
+      console.error('❌ Missing required data for enhancement');
+      console.error('❌ imageId missing:', !imageId);
+      console.error('❌ originalImageUrl missing:', !originalImageUrl);
       toast({
         title: "No image uploaded",
         description: "Please upload an image first to enhance it.",
@@ -101,17 +111,37 @@ const ResultPanel: React.FC<ResultPanelProps> = ({
       });
       return;
     }
+    
+    console.log('✅ Opening face parsing config modal...');
     setShowFaceParsingConfig(true);
+    console.log('✅ Modal state set to true');
   };
 
   const handleFaceParsingConfirm = async (config: FaceParsingConfigType) => {
+    console.log('🚀 handleFaceParsingConfirm called with config:', config);
+    console.log('🚀 imageId:', imageId);
+    console.log('🚀 originalImageUrl:', originalImageUrl);
+    
+    if (!imageId || !originalImageUrl) {
+      console.error('❌ Missing imageId or originalImageUrl');
+      toast({
+        title: "Enhancement failed",
+        description: "Missing image information. Please upload an image first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setIsConfigLoading(true);
     try {
+      console.log('🚀 Starting enhancement with EnhancementService...');
       const result = await EnhancementService.startEnhancement(
         imageId!,
         originalImageUrl!,
         config
       );
+      
+      console.log('🚀 Enhancement service result:', result);
 
       if (result.success) {
         setEnhancementJobId(result.job_id);
@@ -130,6 +160,7 @@ const ResultPanel: React.FC<ResultPanelProps> = ({
         throw new Error(result.error || 'Failed to start enhancement');
       }
     } catch (error) {
+      console.error('❌ Enhancement error:', error);
       toast({
         title: "Enhancement failed",
         description: error instanceof Error ? error.message : "Failed to start enhancement",
@@ -141,18 +172,32 @@ const ResultPanel: React.FC<ResultPanelProps> = ({
   };
 
   const handleEnhancementComplete = (result: EnhancementStatus) => {
+    console.log('🎯 handleEnhancementComplete called with:', result);
+    console.log('🎯 enhanced_image_url:', result.enhanced_image_url);
+    console.log('🎯 Current state - currentEnhancedImage:', currentEnhancedImage);
+    console.log('🎯 Current state - enhancedImage prop:', enhancedImage);
+    
     if (result.enhanced_image_url) {
+      console.log('✅ Setting currentEnhancedImage to:', result.enhanced_image_url);
       setCurrentEnhancedImage(result.enhanced_image_url);
       setIsEnhancing(false);
       setEnhancementJobId(null);
       
       if (onEnhancementComplete) {
+        console.log('✅ Calling parent onEnhancementComplete with:', result.enhanced_image_url);
         onEnhancementComplete(result.enhanced_image_url);
       }
 
       toast({
         title: "Enhancement completed!",
         description: "Your image has been successfully enhanced.",
+      });
+    } else {
+      console.error('❌ No enhanced_image_url in result:', result);
+      toast({
+        title: "Enhancement completed but no image URL",
+        description: "The enhancement completed but we didn't receive the enhanced image URL.",
+        variant: "destructive",
       });
     }
   };
@@ -302,15 +347,36 @@ const ResultPanel: React.FC<ResultPanelProps> = ({
               clipPath: `inset(0 ${100 - sliderPosition}% 0 0)`
             }}
           >
-            <img
-              src={currentEnhancedImage || enhancedImage}
-              alt="Enhanced"
-              className="w-full h-full object-cover"
-              draggable="false"
-            />
-            <div className="text-white text-sm opacity-70 absolute bottom-2 left-4">
-              {currentEnhancedImage ? 'AI Enhanced' : 'Enhanced'}
-            </div>
+            {(currentEnhancedImage || enhancedImage) ? (
+              <>
+                <img
+                  src={currentEnhancedImage || enhancedImage}
+                  alt="Enhanced"
+                  className="w-full h-full object-cover"
+                  draggable="false"
+                />
+                <div className="text-white text-sm opacity-70 absolute bottom-2 left-4">
+                  {currentEnhancedImage ? 'AI Enhanced' : 'Enhanced'}
+                </div>
+              </>
+            ) : (
+              <>
+                <img
+                  src={originalImage}
+                  alt="Original (no enhancement yet)"
+                  className="w-full h-full object-cover opacity-50"
+                  draggable="false"
+                />
+                <div className="text-white text-sm opacity-70 absolute bottom-2 left-4">
+                  Click "Enhance Skin"
+                </div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="bg-black/80 text-white px-4 py-2 rounded-lg text-sm">
+                    No enhancement yet
+                  </div>
+                </div>
+              </>
+            )}
           </div>
           
           {/* Slider Line */}
