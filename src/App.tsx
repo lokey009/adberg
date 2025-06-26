@@ -15,6 +15,7 @@ import VideoService from "./pages/VideoService";
 import PricingPage from "./pages/PricingPage";
 import ContactPage from "./pages/ContactPage";
 import SkinLogic from "./pages/SkinLogic";
+import SkinStudio from "./pages/skin-studio/page";
 import TestUpload from "./pages/test-upload";
 
 const queryClient = new QueryClient();
@@ -33,7 +34,8 @@ const App = () => (
             <Route path="/video-service" element={<VideoService />} />
             <Route path="/pricing" element={<PricingPage />} />
             <Route path="/contact" element={<ContactPage />} />
-            <Route path="/skin-studio" element={<SkinLogic />} />
+            <Route path="/skin-studio" element={<SkinStudio />} />
+            <Route path="/skin-logic" element={<SkinLogic />} />
             <Route path="/test-upload" element={<TestUpload />} />
             <Route
               path="/dashboard"

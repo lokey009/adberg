@@ -1,4 +1,5 @@
 import os
+import sys
 import uuid
 import time
 import traceback
@@ -91,10 +92,25 @@ def upload_to_b2(file_path, object_name):
         # Use local file URL as fallback
         local_url = f"http://localhost:5001/uploads/{os.path.basename(file_path)}"
         
-        # Try to use b2sdk directly
+        # Try to use the simpler b2_config upload function first
         try:
-            app.logger.info("Using b2sdk for upload")
+            app.logger.info("Attempting to use b2_config upload function...")
+            from b2_config import upload_file_to_b2
+            app.logger.info("✅ b2_config imported successfully!")
+
+            url = upload_file_to_b2(file_path, object_name)
+            app.logger.info(f"✅ File uploaded to B2 via b2_config: {url}")
+            return url
+
+        except Exception as b2_config_error:
+            app.logger.error(f"❌ b2_config upload failed: {b2_config_error}")
+            app.logger.error(traceback.format_exc())
+
+        # Fallback to b2sdk directly
+        try:
+            app.logger.info("Attempting to import b2sdk as fallback...")
             from b2sdk.v2 import B2Api, InMemoryAccountInfo
+            app.logger.info("✅ b2sdk imported successfully!")
             
             # Set up B2 API
             info = InMemoryAccountInfo()
@@ -139,8 +155,10 @@ def upload_to_b2(file_path, object_name):
             app.logger.info(f"File uploaded to B2: {url}")
             return url
             
-        except ImportError:
-            app.logger.error("b2sdk not available, falling back to local storage")
+        except ImportError as import_error:
+            app.logger.error(f"❌ b2sdk import failed: {import_error}")
+            app.logger.error(f"Python path: {sys.path}")
+            app.logger.error("Falling back to local storage")
             return local_url
             
         except Exception as b2_error:

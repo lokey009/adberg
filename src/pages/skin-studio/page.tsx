@@ -3,6 +3,7 @@ import UploadPanel from '@/components/skin-logic/UploadPanel';
 import ResultPanel from '@/components/skin-logic/ResultPanel';
 import PreservedAreasPanel from '@/components/skin-logic/PreservedAreasPanel';
 import NavigationBar from '@/components/skin-logic/NavigationBar';
+import FaceParsingConfig, { FaceParsingConfig as FaceParsingConfigType } from '@/components/skin-logic/FaceParsingConfig';
 import { useToast } from '@/hooks/use-toast';
 
 interface EnhancementSettings {
@@ -36,6 +37,31 @@ export default function SkinStudio() {
     agreedToBestPractices: false
   });
 
+  // Face parsing configuration state
+  const [showFaceParsingConfig, setShowFaceParsingConfig] = useState(false);
+  const [faceParsingConfig, setFaceParsingConfig] = useState<FaceParsingConfigType>({
+    background: false,
+    skin: true,
+    nose: true,
+    eye_g: true,
+    r_eye: true,
+    l_eye: true,
+    r_brow: true,
+    l_brow: true,
+    r_ear: false,
+    l_ear: false,
+    mouth: true,
+    u_lip: true,
+    l_lip: true,
+    hair: true,
+    hat: false,
+    ear_r: false,
+    neck_l: false,
+    neck: false,
+    cloth: false
+  });
+  const [enhancementStatus, setEnhancementStatus] = useState<string>('');
+
   // Disable automatic enhancement - only manual "Enhance Skin" button should trigger RunPod API
   // useEffect(() => {
   //   if (uploadedImage && currentFilename && enhancementSettings.agreedToBestPractices && !isEnhancing && !enhancedImage) {
@@ -43,78 +69,120 @@ export default function SkinStudio() {
   //   }
   // }, [uploadedImage, enhancementSettings.agreedToBestPractices, currentFilename]);
 
-  const checkEnhancementStatus = async (filename: string) => {
+  const startEnhancement = async () => {
+    if (!currentFilename || !uploadedImage) {
+      toast({
+        title: "No image uploaded",
+        description: "Please upload an image first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setIsEnhancing(true);
-      console.log('Starting enhancement status check for:', filename);
-      
-      const statusCheckInterval = setInterval(async () => {
-        try {
-          const statusUrl = `http://localhost:5001/skin-studio/status/${filename}`;
-          console.log('Checking status at URL:', statusUrl);
-          
-          const response = await fetch(statusUrl);
-          console.log('Status response received:', response.status, response.statusText);
-          
-          if (!response.ok) {
-            console.error('Status check failed:', response.status, response.statusText);
-            throw new Error(`Failed to check status: ${response.status} ${response.statusText}`);
-          }
-          
-          const data = await response.json();
-          console.log('Status check response data:', data);
-          
-          // Check for either 'complete' or 'completed' status for compatibility
-          if ((data.status === 'complete' || data.status === 'completed') && data.enhanced_url) {
-            clearInterval(statusCheckInterval);
+      setEnhancementStatus('Starting enhancement...');
+      console.log('🚀 Starting enhancement with RunPod API');
+      console.log('Image ID:', currentFilename);
+      console.log('Face parsing config:', faceParsingConfig);
+
+      // Call RunPod API directly through our backend
+      const response = await fetch('http://localhost:5001/skin-studio/enhance', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          image_id: currentFilename,
+          original_image_url: b2ImageUrl || uploadedImage,
+          face_parsing_config: faceParsingConfig
+        }),
+      });
+
+      const data = await response.json();
+      console.log('Enhancement API response:', data);
+
+      if (data.success && data.job_id) {
+        setEnhancementStatus('Enhancement started, processing...');
+
+        toast({
+          title: "Enhancement started",
+          description: "Your image is being processed with AI enhancement.",
+        });
+
+        // Start polling for job status
+        pollEnhancementStatus(data.job_id);
+      } else {
+        throw new Error(data.error || 'Failed to start enhancement');
+      }
+    } catch (error) {
+      console.error('❌ Error starting enhancement:', error);
+      setIsEnhancing(false);
+      setEnhancementStatus('');
+
+      toast({
+        title: "Enhancement failed",
+        description: error instanceof Error ? error.message : "Failed to start enhancement process.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const pollEnhancementStatus = async (jobId: string) => {
+    const maxAttempts = 60; // 5 minutes max (5 second intervals)
+    let attempts = 0;
+
+    const statusInterval = setInterval(async () => {
+      attempts++;
+
+      try {
+        const response = await fetch(`http://localhost:5001/skin-studio/enhance/status/${jobId}`);
+        const data = await response.json();
+
+        console.log(`Status check ${attempts}/${maxAttempts}:`, data);
+
+        if (data.success) {
+          if (data.status === 'completed' && data.enhanced_image_url) {
+            clearInterval(statusInterval);
             setIsEnhancing(false);
-            console.log('Setting enhanced image URL:', data.enhanced_url);
-            setEnhancedImage(data.enhanced_url);
-            
-            const isB2Storage = data.enhanced_url.includes('backblazeb2.com') || data.enhanced_url.includes('b2-proxy');
-            console.log('Enhancement complete, using B2 storage:', isB2Storage);
-            
+            setEnhancementStatus('');
+            setEnhancedImage(data.enhanced_image_url);
+
             toast({
-              title: "Enhancement complete",
-              description: "Your image has been successfully enhanced and saved to " + 
-                          (isB2Storage ? "Backblaze B2." : "local storage."),
+              title: "Enhancement complete!",
+              description: "Your image has been successfully enhanced.",
             });
           } else if (data.status === 'failed') {
-            clearInterval(statusCheckInterval);
+            clearInterval(statusInterval);
             setIsEnhancing(false);
-            console.error('Enhancement failed:', data.error);
-            
+            setEnhancementStatus('');
+
             toast({
               title: "Enhancement failed",
-              description: data.error || "An unknown error occurred",
+              description: data.error_message || "The enhancement process failed.",
               variant: "destructive",
             });
-          } else {
-            console.log('Still processing, status:', data.status);
+          } else if (data.status === 'processing') {
+            setEnhancementStatus(`Processing... ${data.progress || 0}%`);
           }
-        } catch (error) {
-          console.error('Error checking status:', error);
         }
-      }, 1000);
-      
-      // Clean up interval after 30 seconds (timeout)
-      setTimeout(() => {
-        clearInterval(statusCheckInterval);
-        if (isEnhancing) {
+
+        // Timeout after max attempts
+        if (attempts >= maxAttempts) {
+          clearInterval(statusInterval);
           setIsEnhancing(false);
-          console.warn('Enhancement timed out after 30 seconds');
-          
+          setEnhancementStatus('');
+
           toast({
-            title: "Enhancement timed out",
-            description: "The enhancement process is taking longer than expected.",
+            title: "Enhancement timeout",
+            description: "The enhancement is taking longer than expected. Please try again.",
             variant: "destructive",
           });
         }
-      }, 30000);
-    } catch (error) {
-      console.error('Error initiating status check:', error);
-      setIsEnhancing(false);
-    }
+      } catch (error) {
+        console.error('Error checking enhancement status:', error);
+      }
+    }, 5000); // Check every 5 seconds
   };
 
   const handleImageUpload = (imageUrl: string, serverUrl?: string) => {
@@ -156,8 +224,28 @@ export default function SkinStudio() {
   };
 
   const handleEnhance = () => {
-    if (!uploadedImage || !currentFilename) return;
-    checkEnhancementStatus(currentFilename);
+    if (!uploadedImage || !currentFilename) {
+      toast({
+        title: "No image uploaded",
+        description: "Please upload an image first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Start the enhancement process
+    startEnhancement();
+  };
+
+  const handleFaceParsingConfirm = (config: FaceParsingConfigType) => {
+    setFaceParsingConfig(config);
+    setShowFaceParsingConfig(false);
+
+    const selectedCount = Object.values(config).filter(Boolean).length;
+    toast({
+      title: "Face parsing configured",
+      description: `${selectedCount} facial areas selected for enhancement.`,
+    });
   };
 
   const handleReset = () => {
@@ -197,6 +285,9 @@ export default function SkinStudio() {
               onEnhance={handleEnhance}
               isEnhancing={isEnhancing}
               onReset={handleReset}
+              enhancementStatus={enhancementStatus}
+              faceParsingConfig={faceParsingConfig}
+              onOpenFaceParsingConfig={() => setShowFaceParsingConfig(true)}
             />
             
             {uploadedImage && (
@@ -211,10 +302,20 @@ export default function SkinStudio() {
             {(enhancedImage || isEnhancing || uploadedImage) && (
               <ResultPanel
                 originalImage={uploadedImage}
-                enhancedImage={null}
+                enhancedImage={enhancedImage}
                 isLoading={isEnhancing}
                 imageId={currentFilename}
                 originalImageUrl={b2ImageUrl}
+                onEnhanceClick={() => {
+                  console.log('🚀 Enhance button clicked, calling startEnhancement');
+                  console.log('🚀 Current state:');
+                  console.log('  - uploadedImage:', uploadedImage);
+                  console.log('  - enhancedImage:', enhancedImage);
+                  console.log('  - isEnhancing:', isEnhancing);
+                  console.log('  - currentFilename:', currentFilename);
+                  console.log('  - b2ImageUrl:', b2ImageUrl);
+                  startEnhancement();
+                }}
                 onEnhancementStart={(jobId) => {
                   console.log('RunPod enhancement started with job ID:', jobId);
                   setIsEnhancing(true);
@@ -229,6 +330,14 @@ export default function SkinStudio() {
           </div>
         </div>
       </div>
+
+      {/* Face Parsing Configuration Dialog */}
+      <FaceParsingConfig
+        isOpen={showFaceParsingConfig}
+        onClose={() => setShowFaceParsingConfig(false)}
+        onConfirm={handleFaceParsingConfirm}
+        isLoading={isEnhancing}
+      />
     </div>
   );
-} 
+}

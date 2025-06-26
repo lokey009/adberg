@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Upload, Image as ImageIcon, Scissors, Zap, RotateCcw, HelpCircle } from 'lucide-react';
+import { Upload, Image as ImageIcon, Scissors, Zap, RotateCcw, HelpCircle, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
@@ -7,6 +7,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import { FaceParsingConfig } from './FaceParsingConfig';
 
 interface EnhancementSettings {
   mode: 'standard' | 'heavy';
@@ -37,6 +39,9 @@ interface UploadPanelProps {
   onEnhance: () => void;
   isEnhancing: boolean;
   onReset: () => void;
+  enhancementStatus?: string;
+  faceParsingConfig?: FaceParsingConfig;
+  onOpenFaceParsingConfig?: () => void;
 }
 
 const UploadPanel = ({
@@ -46,7 +51,10 @@ const UploadPanel = ({
   setEnhancementSettings,
   onEnhance,
   isEnhancing,
-  onReset
+  onReset,
+  enhancementStatus,
+  faceParsingConfig,
+  onOpenFaceParsingConfig
 }: UploadPanelProps) => {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -502,15 +510,53 @@ const UploadPanel = ({
           </p>
         </div>
 
+        {/* Face Parsing Configuration */}
+        {faceParsingConfig && onOpenFaceParsingConfig && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-white text-sm">Facial Enhancement Areas</label>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onOpenFaceParsingConfig}
+                className="text-xs"
+              >
+                <Settings className="h-3 w-3 mr-1" />
+                Configure
+              </Button>
+            </div>
+            <div className="bg-gray-800/50 rounded-lg p-3">
+              <div className="flex flex-wrap gap-1">
+                {Object.entries(faceParsingConfig)
+                  .filter(([_, enabled]) => enabled)
+                  .slice(0, 6)
+                  .map(([key, _]) => (
+                    <Badge key={key} variant="secondary" className="text-xs">
+                      {key.replace('_', ' ')}
+                    </Badge>
+                  ))}
+                {Object.values(faceParsingConfig).filter(Boolean).length > 6 && (
+                  <Badge variant="outline" className="text-xs">
+                    +{Object.values(faceParsingConfig).filter(Boolean).length - 6} more
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-gray-400 mt-2">
+                {Object.values(faceParsingConfig).filter(Boolean).length} areas selected for enhancement
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Best Practices Checkbox */}
         <div className="flex items-start space-x-3">
           <Checkbox
             id="bestPractices"
             checked={enhancementSettings.agreedToBestPractices}
             onCheckedChange={(checked) =>
-              setEnhancementSettings((prev: EnhancementSettings) => ({ 
-                ...prev, 
-                agreedToBestPractices: checked === true 
+              setEnhancementSettings((prev: EnhancementSettings) => ({
+                ...prev,
+                agreedToBestPractices: checked === true
               }))
             }
           />
@@ -520,18 +566,29 @@ const UploadPanel = ({
         </div>
 
         {/* Enhance Button */}
-        <Button
-          onClick={onEnhance}
-          disabled={!canEnhance}
-          className={`w-full ${
-            canEnhance
-              ? 'bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 text-white'
-              : 'bg-gray-700 text-gray-500 cursor-not-allowed'
-          }`}
-        >
-          <Zap className="h-4 w-4 mr-2" />
-          {isEnhancing ? 'Enhancing...' : 'Enhance Skin ⚡'}
-        </Button>
+        <div className="space-y-2">
+          <Button
+            onClick={onEnhance}
+            disabled={!canEnhance || isEnhancing}
+            className={`w-full ${
+              canEnhance && !isEnhancing
+                ? 'bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 text-white'
+                : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+            }`}
+          >
+            <Zap className="h-4 w-4 mr-2" />
+            {isEnhancing ? 'Enhancing...' : 'Enhance Skin ⚡'}
+          </Button>
+
+          {/* Enhancement Status */}
+          {enhancementStatus && (
+            <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
+              <p className="text-sm text-blue-200 text-center">
+                {enhancementStatus}
+              </p>
+            </div>
+          )}
+        </div>
 
         {/* Testing Notice */}
         <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">

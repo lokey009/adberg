@@ -6,19 +6,19 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# RunPod API Configuration
+# RunPod API Configuration - Updated to use your exact API format
 RUNPOD_API_URL = "https://api.runpod.ai/v2/wez710zm520y1v/run"
 RUNPOD_STATUS_URL = "https://api.runpod.ai/v2/wez710zm520y1v/status"
 RUNPOD_API_KEY = "rpa_TFC7TGD9JOAJAJFLFUG8OKEKSV2UX58ZMTBVIZFE0o5jg5"
 
 def start_enhancement(image_id, face_parsing_config):
     """
-    Start image enhancement process on RunPod
-    
+    Start image enhancement process on RunPod using the exact API format
+
     Args:
         image_id (str): The unique image filename
         face_parsing_config (dict): Face parsing configuration
-        
+
     Returns:
         dict: Response with job_id or error
     """
@@ -26,13 +26,10 @@ def start_enhancement(image_id, face_parsing_config):
         'Content-Type': 'application/json',
         'Authorization': f'Bearer {RUNPOD_API_KEY}'
     }
-    
-    # Construct the B2 image URL from the image_id
-    image_url = f"https://f005.backblazeb2.com/file/shortshive/{image_id}"
-    
+
+    # Use the exact payload format from your curl command
     payload = {
         "input": {
-            "image_url": image_url,  # Add the actual image URL
             "image_id": image_id,
             "face_parsing": face_parsing_config
         }
@@ -40,7 +37,6 @@ def start_enhancement(image_id, face_parsing_config):
     
     try:
         print(f"Starting enhancement for image: {image_id}")
-        print(f"Image URL: {image_url}")
         print(f"Face parsing config: {json.dumps(face_parsing_config, indent=2)}")
         print(f"Full payload: {json.dumps(payload, indent=2)}")
         
